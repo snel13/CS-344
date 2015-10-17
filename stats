@@ -27,7 +27,7 @@ then
  	if [ ! -r "$2" ]
  	then
  	        echo "stats: cannot read $2" 1>&2
- 	        exit 1
+ 	        kill -1 $$
         fi
 fi
 
@@ -36,14 +36,14 @@ fi
 if [ "$#" -lt 1 ]
 then
 	echo "Usage: stats {-rows|-cols} [file]" 1>&2
-	exit 1
+	kill -1 $$
 fi
 
 #if number of arguments more than 2 throw error...stats -r/c file_name is only 3 positional parameters and 2 real arguments
 if [ "$#" -gt 2 ]
 then
 	echo "Usage: stats {-rows|-cols} [file]" 1>&2
-	exit 1
+	kill -1 $$
 fi
 
 #selector section; as long as user enters a -r or -c as their first two characters, the computer doesn't care.  ${1:0:2} tells the computer to take positional parameter 1, 
@@ -51,7 +51,7 @@ fi
 if [ "${1:0:2}" != '-r' ] && [ "${1:0:2}" != '-c' ]
 then
 	echo "Usage: stats {-rows|-cols} [file]" >&2
-	exit 1
+	kill -1 $$ 
 fi 
 
 
