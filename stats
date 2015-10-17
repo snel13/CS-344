@@ -1,0 +1,266 @@
+#!/bin/bash
+#Author: Sam Nelson
+#Class: CS 344 Operating Systems I
+#Date: 28 September 2015
+#Description: Write a shell to calc the average and medians from an input file of numbers.  Numbers will be whole numbers.  Program will average rows to average
+# a students grade, average columsn to figure out the average grade for a specific assignment.
+
+
+#Create temp file
+tempFile=$$temp
+
+#catch errors and terminate, trap will remove temp file too, all errors exit with value of 1; 1=INT 2=HUP 15=TERM
+trap "rm -f $tempFile; exit 1" 1 2 15
+
+
+#ensure file can be read and exit if it can't
+#sample command to envoke script is stats -rows rest_file
+#in this command #0=stats $1=-rows and $2=test_file
+#if number of arguments is 2 like it is shown above then first if statement will pass and move to second if statement
+#if files is not readable, then second if statement will fail
+
+
+if [ "$#" -eq 2 ]
+then
+	#if positional parameter ($2) is unreadable (this is the parameter that contains the file name...$0 is stats #1 is the c or r and $2 is the test_file)
+ 	#then exit with error
+ 	if [ ! -r "$2" ]
+ 	then
+ 	        echo "stats: cannot read $2" 1>&2
+ 	        kill -1 $$
+        fi
+fi
+
+#if number of arguments less that 1 than throw error, less than 1 but greater than 2 excludes 1 and anything greater than 2 forcing the user to enter 2....all errors sent to 
+#standard error with 1>&2 and all errors exit with 1
+if [ "$#" -lt 1 ]
+then
+	echo "Usage: stats {-rows|-cols} [file]" 1>&2
+	kill -1 $$
+fi
+
+#if number of arguments more than 2 throw error...stats -r/c file_name is only 3 positional parameters and 2 real arguments
+if [ "$#" -gt 2 ]
+then
+	echo "Usage: stats {-rows|-cols} [file]" 1>&2
+	kill -1 $$
+fi
+
+#selector section; as long as user enters a -r or -c as their first two characters, the computer doesn't care.  ${1:0:2} tells the computer to take positional parameter 1, 
+#start at the 0th place, go 2 places and read that.  if that compares favorablly to -r or -c, then skip the if...otherwise enter the if and print an error and exit with 1.
+if [ "${1:0:2}" != '-r' ] && [ "${1:0:2}" != '-c' ]
+then
+	echo "Usage: stats {-rows|-cols} [file]" >&2
+	kill -1 $$ 
+fi 
+
+
+#if the number of positional parameters is 1 and we are at this point, it is safe to assume that the cat command called us into this stat script.  In addition it is safe to 
+#assume that the cat command has redirected its output (from another file) into stats.  Because of this, we want to welcome the incoming information, read it line by line, and store 
+#this into tempfile.  If positional parameters are not 1, we can take positional parameter 2 and dump it into the tempfile for operations.
+
+
+if [ "$#" -eq 1 ]
+then
+	while read -r line
+	do
+		echo "$line" >> $tempFile
+	done
+else
+	cat "$2" > $tempFile
+fi
+
+#Row Calcs
+if [[ "$1" =~ ^-r ]]
+then
+
+	#Print the column headers
+	echo "Average Median"
+	
+	#look at every line individually and add up every number on one line at a time; keep track of amount of numbers i add to divide ultimate sum by to get average.
+	while read -r line
+	do
+		counter=0
+		sum=0
+		center=0
+		median=0
+
+		#calculate averages
+		for x in $line
+		do
+			sum=$(expr "$sum" + "$x")
+			rowArray[$counter]=$x
+			counter=$(expr $counter + 1)
+		done
+
+		
+		#stackoverflow.com/questions/2422712/c-rounding-integer-division-instead-of-truncating
+		#I also explain in discussions how this works, why it works, and why this is okay
+		average=$((($sum + $counter / 2) / $counter))
+
+		#sort numbers numerically per line; using this as a source on how to do a selection sort.  
+		#technicalworldforyou.blogspot.com/2012/08/selection-sort-using-shell-script.html
+		#still don't know how to do this with | head tail
+                
+		
+		for ((x=0; x<$counter-1; x++))
+		do
+               		#initate small number (it has to start somewhere)
+              		smallNum=${rowArray[$x]}
+               		#pay attention to the index location in the array for the current small number
+               		index=$x
+               		#look at next number and compare i and j
+               		for ((y=x+1; y<$counter; y++))
+               		do
+	               		if ((rowArray[y]<smallNum))
+                     		then
+                      			smallNum=${rowArray[$y]}
+                      			index=$y
+                       		fi
+              		done   #end for y=x+1
+              		#swap numbers
+              		tempNum=${rowArray[$x]}
+              		#if index was changed from pointing to i on line 110 to pointing to j in line 117 then an actual swap will take place
+             		rowArray[$x]=${rowArray[$index]}
+              		rowArray[$index]=$tempNum
+              	done   #end for x=0
+
+
+               	#if modulus doesn't equal 0 then count was odd/else even
+		#Irregardless of whether the number is even or odd, we take the sorted array and divide the number of elements (counter) by two
+		#after which we find that elements place in the array ad that is our median.  Traditionally, we would want to take 6/2 and add a 1
+		#to the quotient of this division to get the higher of the two medians.  But we do not need to do this on the computer because of 
+		#how an array lays out.  Since an array starts at 0, and because my division doesn't start at 0, we already have a built in +1.
+		#furthermore, this built in 1 doesn't hurt our odd case either.  See below examples
+		#numbers=5,4,6,7,2,1
+		#ordered numbers=1,2,4,5,6,7	
+		#counter=6
+		#rowArray[5]
+		#row Array =   1,2,4,5,6,7
+		#array element=0,1,2,3,4,5
+		#center=3 (6/2)
+		#rowArray[3]=5 (this is the same number as [(6/2)+1]
+		#--odd--
+		#numbers=5,4,6,7,2
+		#ordered numbers=2,4,5,6,7
+		#counter=5
+		#rowArray[4]
+		#center = 2 (5/2 comp rounds down evertyhing under next whole number)
+		#rowArray[2]=5 (notice this is really 2 + a spot for 0 which is 3 which is also 2+1, which is also the exact center of 5 and 
+		#any other odd number.
+
+
+		center=$(expr "$counter" / 2)
+		median=${rowArray[$center]}
+	
+	# print
+	echo "$average" "     " "$median"
+	done < $tempFile
+fi
+
+if [[ "$1" =~ ^-c ]]
+then
+
+
+#get number of columns
+#head will take the first portion of the text file, -n specifys that it take the 1st line of the file...wc -w will count the length of this line
+#I am bob
+#will return a length of 9 because ther is an understood enter character \n at the end of the line.	
+
+
+	numCol=$(head -n 1 $tempFile | wc -w)
+	colNumber=0
+
+	#read each column and store in an array
+	while [ $colNumber -lt "$numCol" ]
+	do
+		#Keep it from accumulating sum and count
+		counter=0
+		sum=0
+		center=0
+		median=0
+
+		#array of lines and array of columns
+		while read -r line
+		do
+
+
+			#look at each line...pull it in as an array and store it in rowArray
+			rowArray=($line)
+			#since the above line pulls in line into an array rowArray, we are able to refer to a column in each line that we pull in.  When we do, we grab
+			#that value and store it in another arraw essentially building columns laid on their side
+			#Example:
+			#2 2
+			#1 2
+			#2 3
+			#6 7
+			#rowArray={2 2} {1 2} {2 3} {6 7}
+			#columnArray{2, 1, 2, 6} - After line 178 finishes
+			
+			
+			columnArray[$counter]=${rowArray[$colNumber]}
+			#counter will count the number of rows which is also the number of elements in a column
+			counter=$(expr "$counter" + 1)				
+		done < $tempFile	
+
+
+		#sum together each 1 by x array; number of elements is still counter
+		for z in "${columnArray[@]}"
+		do
+			sum=$(expr "$sum" + "$z")
+		done
+
+		#stackoverflow.com/questions/2422712/c-rounding-integer-division-instead-of-truncating
+		#I also explain in discussions how this works, why it works, and why this is okay
+		average=$((($sum + $counter / 2) / $counter))
+
+		#store average in respectful column number
+		averageArray[$colNumber]=$average
+
+		
+		#sort numbers in numerical order to find median
+		#continuing example from above we have numArray {2 1 2 6}
+		#smallNum=2 index=0 a=1 numArray=1, smallnum=1 index=1, temp=2 numArray[z]=numArray[index] (note, this places the lower value earlier in the array)
+		
+		
+		for ((a=0; a<$counter-1; a++))
+		do
+			smallNum=${columnArray[$a]}
+			index=$a
+			for ((b=a+1; b<$counter; b++))
+			do
+				if ((columnArray[b]<smallNum))
+				then
+					smallNum=${columnArray[$b]}
+					index=$b
+				fi
+			done
+			temp=${columnArray[$a]}
+			columnArray[$a]=${columnArray[$index]}
+			columnArray[$index]=$temp
+		done
+		
+		#To get the median in both even and odd array size cases	
+		center=$(expr $counter / 2)
+		median=${columnArray[$center]}
+		medianArray[$colNumber]=$median
+
+		# increase to row element (aka column)
+		colNumber=$(expr $colNumber + 1)
+	done
+
+	echo "Averages:"
+	for x in "${averageArray[@]}"
+	do
+		echo "${x}"
+	done | column
+
+	echo "Medians:"
+	for x in "${medianArray[@]}"
+	do
+		echo "${x}"
+	done | column
+fi
+rm -f $tempFile
+
+
